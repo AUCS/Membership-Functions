@@ -6,29 +6,22 @@ using System.Threading.Tasks;
 using System.Diagnostics;
 using Microsoft.Azure.WebJobs.Host;
 
-public static Task<HttpResponseMessage> Run(HttpRequestMessage req, TraceWriter log)
+public static async Task<HttpResponseMessage> Run(HttpRequestMessage req, TraceWriter log)
 {
-    var queryParamms = req.GetQueryNameValuePairs()
-        .ToDictionary(p => p.Key, p => p.Value, StringComparer.OrdinalIgnoreCase);
+    log.Info($"C# HTTP trigger function processed a request. RequestUri={req.RequestUri}");
 
-    log.Info(string.Format("C# HTTP trigger function processed a request. Name={0}", req.RequestUri));
+    // parse query parameter
+    string name = req.GetQueryNameValuePairs()
+        .FirstOrDefault(q => string.Compare(q.Key, "name", true) == 0)
+        .Value;
 
-    HttpResponseMessage res = null;
-    string name;
-    if (queryParamms.TryGetValue("name", out name))
-    {
-        res = new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = new StringContent("Hello " + name)
-        };
-    }
-    else
-    {
-        res = new HttpResponseMessage(HttpStatusCode.BadRequest)
-        {
-            Content = new StringContent("Please pass a name on the query string")
-        };
-    }
+    // Get request body
+    dynamic data = await req.Content.ReadAsAsync<object>();
 
-    return Task.FromResult(res);
+    // Set name to query string or body data
+    name = name ?? data?.name;
+
+    return name == null
+        ? req.CreateResponse(HttpStatusCode.BadRequest, "Please pass a name on the query string or in the request body")
+        : req.CreateResponse(HttpStatusCode.OK, "Hello " + name);
 }
